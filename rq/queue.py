@@ -88,7 +88,7 @@ class Queue(object):
     @property
     def key(self):
         """Returns the Redis key for this Queue."""
-        return self._key
+        return self._key  # [z]: The key is 'rq:queue:{queue_name}'
 
     @property
     def registry_cleaning_key(self):
@@ -160,6 +160,7 @@ class Queue(object):
             end = length
         return [as_text(job_id) for job_id in
                 self.connection.lrange(self.key, start, end)]
+        # [z]: The list `rq:queue:{queue_name}` contains job IDs
 
     def get_jobs(self, offset=0, length=-1):
         """Returns a slice of jobs in the queue."""
@@ -179,7 +180,7 @@ class Queue(object):
     @property
     def count(self):
         """Returns a count of all messages in the queue."""
-        return self.connection.llen(self.key)
+        return self.connection.llen(self.key)  # [z]: Number of job IDs in the list
 
     @property
     def failed_job_registry(self):
@@ -337,6 +338,8 @@ class Queue(object):
         job.save(include_meta=False)
         job.cleanup(DEFAULT_RESULT_TTL)
         return job
+        # [z]: The core job running process.
+        #      Perform task => Set FINISHED => Save job => Clean up
 
     def enqueue(self, f, *args, **kwargs):
         """Creates a job to represent the delayed function call and enqueues
@@ -355,6 +358,7 @@ class Queue(object):
         if not isinstance(f, string_types) and f.__module__ == '__main__':
             raise ValueError('Functions from the __main__ module cannot be processed '
                              'by workers')
+            # [z]: Functions from __main__ cannot be imported
 
         # Detect explicit invocations, i.e. of the form:
         #     q.enqueue(foo, args=(1, 2), kwargs={'a': 1}, job_timeout=30)
@@ -398,6 +402,12 @@ class Queue(object):
         return self.enqueue_at(datetime.now(utc) + time_delta,
                                func, *args, **kwargs)
 
+    # [z]: enqueue_job
+    #      1. Add queue key to set `rq:queues`
+    #      2. Set job status to QUEUED
+    #      3. Save job
+    #      4. Clean up
+    #      5. If async, push job id into list `rq:queue:{queue_name}`; else run job
     def enqueue_job(self, job, pipeline=None, at_front=False):
         """Enqueues a job for delayed execution.
 

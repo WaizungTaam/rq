@@ -533,7 +533,7 @@ class Job(object):
         """
         obj = {}
         obj['created_at'] = utcformat(self.created_at or utcnow())
-        obj['data'] = zlib.compress(self.data)
+        obj['data'] = zlib.compress(self.data)  # [z]: Use zlib to compress data
 
         if self.origin is not None:
             obj['origin'] = self.origin
@@ -602,6 +602,7 @@ class Job(object):
         if self.origin:
             q = Queue(name=self.origin, connection=self.connection)
             q.remove(self, pipeline=pipeline)
+            # [z]: Build the original queue for the job and call Queue.remove
         pipeline.execute()
 
     def requeue(self):
@@ -729,6 +730,9 @@ class Job(object):
             connection.expire(self.key, ttl)
             connection.expire(self.dependents_key, ttl)
             connection.expire(self.dependencies_key, ttl)
+        # [z]: If ttl == 0, then delete immdiatetly;
+        #      If ttl > 0, then set to expire in ttl;
+        #      Else, do nothing.
 
     @property
     def failed_job_registry(self):

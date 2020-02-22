@@ -341,6 +341,9 @@ class Queue(object):
         # [z]: The core job running process.
         #      Perform task => Set FINISHED => Save job => Clean up
 
+    # [z]: Queue.enqueue is the main entry point.
+    #      Queue.enqueue => Queue.enqueue_call => Job.create
+    #                                          => Queue.enqueue_job
     def enqueue(self, f, *args, **kwargs):
         """Creates a job to represent the delayed function call and enqueues
         it.

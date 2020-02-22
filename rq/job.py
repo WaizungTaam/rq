@@ -124,6 +124,13 @@ class Job(object):
             job._func_name = '__call__'
         else:
             raise TypeError('Expected a callable or a string, but got: {0}'.format(func))
+        # [z] Convert func to job._instance and job._func_name
+        #     If func is a class method, then (func.__self__, func.__name__)
+        #     If func is a function or builtin, then (None, f'{func.__module__}.{func.__name__}')
+        #     If func is a string, then (None, func)
+        #     If func is a callable instance (not a class, but has __call__), then (func, '__call__')
+        #     Else, error
+        
         job._args = args
         job._kwargs = kwargs
 
@@ -145,10 +152,10 @@ class Job(object):
         if refresh:
             self._status = as_text(self.connection.hget(self.key, 'status'))
 
-        return self._status
+        return self._status  # [z]: If not `refresh`, use the cached value. Default refresh = True.
 
     def set_status(self, status, pipeline=None):
-        self._status = status
+        self._status = status  # [z] Update local cached `_status` first
         connection = pipeline or self.connection
         connection.hset(self.key, 'status', self._status)
 
@@ -374,7 +381,7 @@ class Job(object):
         first time the ID is requested.
         """
         if self._id is None:
-            self._id = text_type(uuid4())
+            self._id = text_type(uuid4())  # [z]: If id is not set, use uuid4
         return self._id
 
     def set_id(self, value):
@@ -384,6 +391,7 @@ class Job(object):
         self._id = value
 
     id = property(get_id, set_id)
+    # [z]: class property(fget=None, fset=None, fdel=None, doc=None)
 
     @classmethod
     def key_for(cls, job_id):
@@ -399,6 +407,8 @@ class Job(object):
     def key(self):
         """The Redis key that is used to store job hash under."""
         return self.key_for(self.id)
+        # [z]: The key for a job is: 'jq:job:{job_id}'.encode()
+        # [z?]: Why not store the key as a static value?
 
     @property
     def dependents_key(self):
@@ -448,7 +458,7 @@ class Job(object):
         seconds by default).
         """
         if self._result is None:
-            rv = self.connection.hget(self.key, 'result')
+            rv = self.connection.hget(self.key, 'result')  # [z]: `rq:job:{job_id}` => result
             if rv is not None:
                 # cache the result
                 self._result = loads(rv)
@@ -658,14 +668,15 @@ class Job(object):
     # Job execution
     def perform(self):  # noqa
         """Invokes the job function with the job arguments."""
-        self.connection.persist(self.key)
-        _job_stack.push(self)
+        self.connection.persist(self.key)  # [z?]: Why persist the key? Does the key has expiration?
+        _job_stack.push(self)  # [z?]: Execute in a local stack. Find out more about _job_stack.
         try:
             self._result = self._execute()
         finally:
             assert self is _job_stack.pop()
         return self._result
 
+    # [z]: The actual task execution
     def _execute(self):
         return self.func(*self.args, **self.kwargs)
 

@@ -41,6 +41,16 @@ class job(object):  # noqa
         self.description = description
         self.failure_ttl = failure_ttl
 
+    # [z]: Decorator definition
+    #      class Foo:
+    #          ...
+    #          def __call__(self, f):
+    #              @wraps(f)
+    #              def bar(*args, **kwargs):
+    #                  ...
+    #              ...
+    #              return f
+
     def __call__(self, f):
         @wraps(f)
         def delay(*args, **kwargs):

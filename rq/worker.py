@@ -459,6 +459,7 @@ class Worker(object):
                 self.scheduler.acquire_locks(auto_start=True)
         self.clean_registries()
 
+    # [z]: Main worker interface
     def work(self, burst=False, logging_level="INFO", date_format=DEFAULT_LOGGING_DATE_FORMAT,
              log_format=DEFAULT_LOGGING_FORMAT, max_jobs=None, with_scheduler=False):
         """Starts the work loop.
@@ -491,6 +492,7 @@ class Worker(object):
 
         self._install_signal_handlers()
 
+        # [z]: try... while... try
         try:
             while True:
                 try:
@@ -505,14 +507,14 @@ class Worker(object):
 
                     timeout = None if burst else max(1, self.default_worker_ttl - 15)
 
-                    result = self.dequeue_job_and_maintain_ttl(timeout)
+                    result = self.dequeue_job_and_maintain_ttl(timeout)  # [z]: Pop job
                     if result is None:
                         if burst:
                             self.log.info("Worker %s: done, quitting", self.key)
                         break
 
                     job, queue = result
-                    self.execute_job(job, queue)
+                    self.execute_job(job, queue)  # [z]: Execute job
                     self.heartbeat()
 
                     completed_jobs += 1
@@ -556,6 +558,7 @@ class Worker(object):
                 pass
             self.scheduler._process.join()
 
+    # [z]: Pop job from queue, => Queue.dequeue_any
     def dequeue_job_and_maintain_ttl(self, timeout):
         result = None
         qnames = ','.join(self.queue_names())
@@ -604,8 +607,9 @@ class Worker(object):
         """
         timeout = timeout or self.default_worker_ttl
         connection = pipeline if pipeline is not None else self.connection
-        connection.expire(self.key, timeout)
+        connection.expire(self.key, timeout)  # [z]: Extend expiration of worker key by timeout
         connection.hset(self.key, 'last_heartbeat', utcformat(utcnow()))
+        # [z]: Set `rq:worker:{worker_name}` => last_heartbeat to now
         self.log.debug('Sent heartbeat to prevent worker timeout. '
                        'Next one should arrive within %s seconds.', timeout)
 
@@ -657,15 +661,16 @@ class Worker(object):
         pipeline.hincrbyfloat(self.key, 'total_working_time',
                               job_execution_time.total_seconds())
 
+    # [z]: Spawning from parent, and entry for children
     def fork_work_horse(self, job, queue):
         """Spawns a work horse to perform the actual work and passes it a job.
         """
-        child_pid = os.fork()
-        os.environ['RQ_WORKER_ID'] = self.name
-        os.environ['RQ_JOB_ID'] = job.id
-        if child_pid == 0:
+        child_pid = os.fork()  # [z]: Use unix fork
+        os.environ['RQ_WORKER_ID'] = self.name  # [z]: Pass worker name
+        os.environ['RQ_JOB_ID'] = job.id  # [z]: Pass job id
+        if child_pid == 0:  # [z]: If the current process if a child process, perform work
             self.main_work_horse(job, queue)
-        else:
+        else:  # [z]: If this is the parent, monitor
             self._horse_pid = child_pid
             self.procline('Forked {0} at {1}'.format(child_pid, time.time()))
 
@@ -868,6 +873,7 @@ class Worker(object):
                 except WatchError:
                     continue
 
+    # [z]: The actual job execution
     def perform_job(self, job, queue, heartbeat_ttl=None):
         """Performs the actual work of a job.  Will/should only be called
         inside the work horse's process.
@@ -881,13 +887,13 @@ class Worker(object):
             job.started_at = utcnow()
             timeout = job.timeout or self.queue_class.DEFAULT_TIMEOUT
             with self.death_penalty_class(timeout, JobTimeoutException, job_id=job.id):
-                rv = job.perform()
+                rv = job.perform()  # [z]: The actual job performing in worker
 
             job.ended_at = utcnow()
 
             # Pickle the result in the same try-except block since we need
             # to use the same exc handling when pickling fails
-            job._result = rv
+            job._result = rv  # [z]: Set the result back to the job
             self.handle_job_success(job=job,
                                     queue=queue,
                                     started_job_registry=started_job_registry)
@@ -944,6 +950,8 @@ class Worker(object):
 
             if not fallthrough:
                 break
+            #  [z]: If the current handler explicitly return False value (except None),
+            #       the handling process will be interrupted.
 
     @staticmethod
     def _get_safe_exception_string(exc_strings):

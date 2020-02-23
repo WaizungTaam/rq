@@ -183,6 +183,7 @@ class Worker(object):
                                    job_class=self.job_class)
                   if isinstance(q, string_types) else q
                   for q in ensure_list(queues)]
+        # [z]: A worker can work on multiple queues, and a queue can have multiple workers.
 
         self.name = name or uuid4().hex
         self.queues = queues
@@ -739,6 +740,7 @@ class Worker(object):
         """
         self.set_state(WorkerStatus.BUSY)
         self.fork_work_horse(job, queue)
+        # [z?]: It seems like that for every new job, a child process is forked. Is this efficient?
         self.monitor_work_horse(job)
         self.set_state(WorkerStatus.IDLE)
 

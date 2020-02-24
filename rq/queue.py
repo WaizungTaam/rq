@@ -387,6 +387,7 @@ class Queue(object):
             at_front=at_front, meta=meta
         )
 
+    # [z]: Main entry for scheduled jobs. Use ScheduledJobRegistry.
     def enqueue_at(self, datetime, func, *args, **kwargs):
         """Schedules a job to be enqueued at specified time"""
         from .registry import ScheduledJobRegistry

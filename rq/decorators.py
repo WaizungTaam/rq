@@ -14,6 +14,7 @@ from .utils import backend_class
 class job(object):  # noqa
     queue_class = Queue
 
+    # [z]: The `queue` parameter is required for the decorator
     def __init__(self, queue, connection=None, timeout=None,
                  result_ttl=DEFAULT_RESULT_TTL, ttl=None,
                  queue_class=None, depends_on=None, at_front=None, meta=None,

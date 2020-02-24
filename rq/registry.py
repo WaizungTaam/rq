@@ -264,6 +264,7 @@ class ScheduledJobRegistry(BaseRegistry):
 
         timestamp = calendar.timegm(scheduled_datetime.utctimetuple())
         return self.connection.zadd(self.key, {job.id: timestamp})
+        # [z]: Add job id and the schedule timestamp to sorted set `zq:scheculed:{name}`
 
     def cleanup(self):
         """This method is only here to prevent errors because this method is
@@ -277,11 +278,13 @@ class ScheduledJobRegistry(BaseRegistry):
         score = timestamp if timestamp is not None else current_timestamp()
         return connection.zremrangebyscore(self.key, 0, score)
 
+    # [z]: Core function in scheduling
     def get_jobs_to_schedule(self, timestamp=None):
         """Remove jobs whose timestamp is in the past from registry."""
         score = timestamp if timestamp is not None else current_timestamp()
         return [as_text(job_id) for job_id in
                 self.connection.zrangebyscore(self.key, 0, score)]
+        # [z]: Remove the job ids with timestamp in [0, now] from sorted set `zq:scheduled:{name}`
 
     def get_scheduled_time(self, job_or_id):
         """Returns datetime (UTC) at which job is scheduled to be enqueued"""

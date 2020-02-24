@@ -101,6 +101,7 @@ class RQScheduler(object):
         """Returns scheduler key for a given queue name"""
         return SCHEDULER_LOCKING_KEY_TEMPLATE % name
 
+    # [z]: Get jobs from registry and euqueue them into queues
     def enqueue_scheduled_jobs(self):
         """Enqueue jobs whose timestamp is in the past"""
         self._status = self.Status.WORKING
@@ -156,12 +157,15 @@ class RQScheduler(object):
         self.connection.delete(*keys)
         self._status = self.Status.STOPPED
     
+    # [z]: Where we start a new process to run the scheduler.
+    #      scheudler.start => run => scheduler.work
     def start(self):
         self._status = self.Status.STARTED
         self._process = Process(target=run, args=(self,), name='Scheduler')
         self._process.start()
         return self._process
 
+    # [z]: Run forever, try to get scheduled jobs and enqueue.
     def work(self):
         self._install_signal_handlers()
         while True:
@@ -177,6 +181,7 @@ class RQScheduler(object):
             time.sleep(self.interval)
 
 
+# [z]: This is the main function for the spawned process. It calls scheduler.work().
 def run(scheduler):
     logging.info("Scheduler for %s started with PID %s",
                  ','.join(scheduler._queue_names), os.getpid())
